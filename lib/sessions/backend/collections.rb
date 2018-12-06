@@ -7,6 +7,7 @@ class Sessions::Backend::Collections < Sessions::Backend::Base
     @ttl          = ttl
     @asset_lookup = asset_lookup
     @backends     = backend
+    @time_now     = Time.zone.now.to_i
   end
 
   def push
@@ -43,6 +44,7 @@ class Sessions::Backend::Collections < Sessions::Backend::Base
       file.gsub!("#{dir}/lib/", '')
       file.gsub!(/\.rb$/, '')
       next if file.classify == 'Sessions::Backend::Collections::Base'
+
       #puts "LOAD #{file.classify}---"
       #next if file == ''
       backend = file.classify.constantize.new(@user, @asset_lookup, @client, @client_id, @ttl)

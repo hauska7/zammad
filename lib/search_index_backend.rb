@@ -13,6 +13,7 @@ info about used search index machine
   def self.info
     url = Setting.get('es_url').to_s
     return if url.blank?
+
     Rails.logger.info "# curl -X GET \"#{url}\""
     response = UserAgent.get(
       url,
@@ -29,8 +30,10 @@ info about used search index machine
     if response.success?
       installed_version = response.data.dig('version', 'number')
       raise "Unable to get elasticsearch version from response: #{response.inspect}" if installed_version.blank?
+
       version_supported = Gem::Version.new(installed_version) < Gem::Version.new('5.7')
       raise "Version #{installed_version} of configured elasticsearch is not supported" if !version_supported
+
       return response.data
     end
 
@@ -165,13 +168,19 @@ create/update/delete index
     Rails.logger.info "# curl -X PUT \"#{url}\" \\"
     Rails.logger.debug { "-d '#{data[:data].to_json}'" }
 
+    # note that we use a high read timeout here because
+    # otherwise the request will be retried (underhand)
+    # which leads to an "index_already_exists_exception"
+    # HTTP 400 status error
+    # see: https://github.com/ankane/the-ultimate-guide-to-ruby-timeouts/issues/8
+    # Improving the Elasticsearch config is probably the proper solution
     response = UserAgent.put(
       url,
       data[:data],
       {
         json: true,
         open_timeout: 8,
-        read_timeout: 12,
+        read_timeout: 30,
         user: Setting.get('es_user'),
         password: Setting.get('es_password'),
       }
@@ -265,11 +274,19 @@ remove whole data from index
 
 =begin
 
-return search result
+@param query   [String]  search query
+@param index   [String, Array<String>, nil] indexes to search in (see search_by_index)
+@param options [Hash] search options (see build_query)
 
-  result = SearchIndexBackend.search('search query', limit, ['User', 'Organization'])
+@return search result
 
-  result = SearchIndexBackend.search('search query', limit, 'User')
+@example Sample queries
+
+  result = SearchIndexBackend.search('search query', ['User', 'Organization'], limit: limit)
+
+  result = SearchIndexBackend.search('search query', 'User', limit: limit)
+
+  result = SearchIndexBackend.search('search query', 'User', limit: limit, sort_by: ['updated_at'], order_by: ['desc'])
 
   result = [
     {
@@ -288,24 +305,33 @@ return search result
 
 =end
 
-  def self.search(query, limit = 10, index = nil, query_extention = {}, from = 0)
-    return [] if query.blank?
-    if index.class == Array
-      ids = []
-      index.each do |local_index|
-        local_ids = search_by_index(query, limit, local_index, query_extention, from)
-        ids = ids.concat(local_ids)
-      end
-      return ids
+  def self.search(query, index = nil, options = {})
+    if !index.is_a? Array
+      return search_by_index(query, index, options)
     end
-    search_by_index(query, limit, index, query_extention, from)
+
+    index
+      .map { |local_index| search_by_index(query, local_index, options) }
+      .compact
+      .flatten(1)
   end
 
-  def self.search_by_index(query, limit = 10, index = nil, query_extention = {}, from)
+=begin
+
+@param query   [String]  search query
+@param index   [String, Array<String>, nil] index name or list of index names. If index is nil or not present will, search will be performed globally
+@param options [Hash] search options (see build_query)
+
+@return search result
+
+=end
+
+  def self.search_by_index(query, index = nil, options = {})
     return [] if query.blank?
 
     url = build_url
     return if url.blank?
+
     url += if index
              if index.class == Array
                "/#{index.join(',')}/_search"
@@ -315,38 +341,24 @@ return search result
            else
              '/_search'
            end
-    data = {}
-    data['from'] = from
-    data['size'] = limit
-    data['sort'] =
-      [
-        {
-          updated_at: {
-            order: 'desc'
-          }
-        },
-        '_score'
-      ]
-
-    data['query'] = query_extention || {}
-    data['query']['bool'] ||= {}
-    data['query']['bool']['must'] ||= []
 
     # real search condition
     condition = {
       'query_string' => {
         'query' => append_wildcard_to_simple_query(query),
         'default_operator' => 'AND',
+        'analyze_wildcard' => true,
       }
     }
-    data['query']['bool']['must'].push condition
+
+    query_data = build_query(condition, options)
 
     Rails.logger.info "# curl -X POST \"#{url}\" \\"
-    Rails.logger.debug { " -d'#{data.to_json}'" }
+    Rails.logger.debug { " -d'#{query_data.to_json}'" }
 
     response = UserAgent.get(
       url,
-      data,
+      query_data,
       {
         json: true,
         open_timeout: 5,
@@ -361,26 +373,62 @@ return search result
       Rails.logger.error humanized_error(
         verb:     'GET',
         url:      url,
-        payload:  data,
+        payload:  query_data,
         response: response,
       )
       return []
     end
-    data = response.data
+    data = response.data&.dig('hits', 'hits')
 
-    ids = []
-    return ids if !data
-    return ids if !data['hits']
-    return ids if !data['hits']['hits']
-    data['hits']['hits'].each do |item|
+    return [] if !data
+
+    data.map do |item|
       Rails.logger.info "... #{item['_type']} #{item['_id']}"
-      data = {
+
+      {
         id: item['_id'],
         type: item['_type'],
       }
-      ids.push data
     end
-    ids
+  end
+
+  def self.search_by_index_sort(sort_by = nil, order_by = nil)
+    result = []
+
+    sort_by&.each_with_index do |value, index|
+      next if value.blank?
+      next if order_by&.at(index).blank?
+
+      if value !~ /\./ && value !~ /_(time|date|till|id|ids|at)$/
+        value += '.raw'
+      end
+      result.push(
+        value => {
+          order: order_by[index],
+        },
+      )
+    end
+
+    if result.blank?
+      result.push(
+        updated_at: {
+          order: 'desc',
+        },
+      )
+    end
+
+    # add sorting by active if active is not part of the query
+    if result.flat_map(&:keys).exclude?(:active)
+      result.unshift(
+        active: {
+          order: 'desc',
+        },
+      )
+    end
+
+    result.push('_score')
+
+    result
   end
 
 =begin
@@ -427,6 +475,7 @@ get count of tickets and tickets which match on selector
 
     url = build_url
     return if url.blank?
+
     url += if index
              if index.class == Array
                "/#{index.join(',')}/_search"
@@ -530,6 +579,7 @@ get count of tickets and tickets which match on selector
           if range.blank?
             raise "Invalid relative_map for range '#{data['range']}'."
           end
+
           t[:range] = {}
           t[:range][key_tmp] = {}
           if data['operator'] == 'within last (relative)'
@@ -545,6 +595,7 @@ get count of tickets and tickets which match on selector
           if range.blank?
             raise "Invalid relative_map for range '#{data['range']}'."
           end
+
           t[:range] = {}
           t[:range][key_tmp] = {}
           if data['operator'] == 'before (relative)'
@@ -629,11 +680,13 @@ return true if backend is configured
 
   def self.enabled?
     return false if Setting.get('es_url').blank?
+
     true
   end
 
   def self.build_url(type = nil, o_id = nil)
     return if !SearchIndexBackend.enabled?
+
     index = "#{Setting.get('es_index')}_#{Rails.env}"
     url   = Setting.get('es_url')
     url = if type
@@ -673,10 +726,50 @@ return true if backend is configured
     result
   end
 
-  # add * on simple query like "somephrase23" or "attribute: somephrase23"
+  # add * on simple query like "somephrase23"
   def self.append_wildcard_to_simple_query(query)
     query.strip!
-    query += '*' if query.match?(/^([[:alnum:]._]+|[[:alnum:]]+\:\s*[[:alnum:]._]+)$/)
+    query += '*' if !query.match?(/:/)
     query
+  end
+
+=begin
+
+@param condition [Hash] search condition
+@param options [Hash] search options
+@option options [Integer] :from
+@option options [Integer] :limit
+@option options [Hash] :query_extension applied to ElasticSearch query
+@option options [Array<String>] :order_by ordering directions, desc or asc
+@option options [Array<String>] :sort_by fields to sort by
+
+=end
+
+  DEFAULT_QUERY_OPTIONS = {
+    from:  0,
+    limit: 10
+  }.freeze
+
+  def self.build_query(condition, options = {})
+    options = DEFAULT_QUERY_OPTIONS.merge(options.deep_symbolize_keys)
+
+    data = {
+      from:  options[:from],
+      size:  options[:limit],
+      sort:  search_by_index_sort(options[:sort_by], options[:order_by]),
+      query: {
+        bool: {
+          must: []
+        }
+      }
+    }
+
+    if (extension = options.dig(:query_extension))
+      data[:query].deep_merge! extension.deep_dup
+    end
+
+    data[:query][:bool][:must].push condition
+
+    data
   end
 end

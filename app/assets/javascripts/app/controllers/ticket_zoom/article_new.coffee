@@ -47,6 +47,10 @@ class App.TicketZoomArticleNew extends App.Controller
     if @defaults.body or @isIE10()
       @openTextarea(null, true)
 
+    if _.isArray(@defaults.attachments)
+      for attachment in @defaults.attachments
+        @renderAttachment(attachment)
+
     # set article type and expand text area
     @bind('ui::ticket::setArticleType', (data) =>
       return if data.ticket.id.toString() isnt @ticket_id.toString()
@@ -94,7 +98,7 @@ class App.TicketZoomArticleNew extends App.Controller
     # set expand of text area only once
     @bind('ui::ticket::shown', (data) =>
       return if data.ticket_id.toString() isnt @ticket.id.toString()
-      @tokanice()
+      @tokanice(@type)
     )
 
     # rerender, e. g. on language change
@@ -102,8 +106,8 @@ class App.TicketZoomArticleNew extends App.Controller
       @render()
     )
 
-  tokanice: ->
-    App.Utils.tokaniceEmails('.content.active .js-to, .js-cc, js-bcc')
+  tokanice: (type = 'email') ->
+    App.Utils.tokanice('.content.active .js-to, .js-cc, js-bcc', type)
 
   setPossibleArticleTypes: =>
     @articleTypes = []
@@ -159,7 +163,7 @@ class App.TicketZoomArticleNew extends App.Controller
       position:  'right'
     )
 
-    @tokanice()
+    @tokanice(@type)
 
     @$('[data-name="body"]').ce({
       mode:      'richtext'
@@ -175,7 +179,7 @@ class App.TicketZoomArticleNew extends App.Controller
       key:             'File'
       data:
         form_id: @form_id
-      maxSimultaneousUploads: 1,
+      maxSimultaneousUploads: 1
       onFileAdded:            (file) =>
 
         file.on(
@@ -185,10 +189,16 @@ class App.TicketZoomArticleNew extends App.Controller
             @attachmentUpload.removeClass('hide')
             @cancelContainer.removeClass('hide')
 
+            if @callbackFileUploadStart
+              @callbackFileUploadStart()
+
           onAborted: =>
             @attachmentPlaceholder.removeClass('hide')
             @attachmentUpload.addClass('hide')
             @$('.article-attachment input').val('')
+
+            if @callbackFileUploadStop
+              @callbackFileUploadStop()
 
           # Called after received response from the server
           onCompleted: (response) =>
@@ -205,6 +215,9 @@ class App.TicketZoomArticleNew extends App.Controller
 
             @renderAttachment(response.data)
             @$('.article-attachment input').val('')
+
+            if @callbackFileUploadStop
+              @callbackFileUploadStop()
 
           # Called during upload progress, first parameter
           # is decimal value from 0 to 100.
@@ -333,7 +346,7 @@ class App.TicketZoomArticleNew extends App.Controller
     @setArticleTypePost(articleTypeToSet)
 
     $(window).off('click.ticket-zoom-select-type')
-    @tokanice()
+    @tokanice(articleTypeToSet)
 
   hideSelectableArticleType: =>
     @el.find('.js-articleTypes').addClass('is-hidden')

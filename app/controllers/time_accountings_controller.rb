@@ -28,6 +28,7 @@ class TimeAccountingsController < ApplicationController
     time_unit.each do |ticket_id, local_time_unit|
       ticket = Ticket.lookup(id: ticket_id)
       next if !ticket
+
       if !customers[ticket.customer_id]
         customers[ticket.customer_id] = '-'
         if ticket.customer_id
@@ -46,7 +47,7 @@ class TimeAccountingsController < ApplicationController
           end
         end
       end
-      if !customers[local_time_unit[:agent_id]]
+      if !agents[local_time_unit[:agent_id]]
         agent_user = User.lookup(id: local_time_unit[:agent_id])
         agent = '-'
         if agent_user
@@ -264,6 +265,7 @@ class TimeAccountingsController < ApplicationController
     time_unit.each do |ticket_id, local_time_unit|
       ticket = Ticket.lookup(id: ticket_id)
       next if !ticket
+
       if !customers[ticket.customer_id]
         organization = nil
         if ticket.organization_id
@@ -345,6 +347,7 @@ class TimeAccountingsController < ApplicationController
       ticket = Ticket.lookup(id: ticket_id)
       next if !ticket
       next if !ticket.organization_id
+
       if !organizations[ticket.organization_id]
         organizations[ticket.organization_id] = {
           organization: Organization.lookup(id: ticket.organization_id).attributes,
