@@ -19,14 +19,12 @@ class Observer::Transaction < ActiveRecord::Observer
   end
 
   def self.perform(params)
-    puts "===Transaction perform"
 
     # return if we run import mode
     return if Setting.get('import_mode')
 
     # get buffer
     list = EventBuffer.list('transaction')
-    puts "EVENT BUFFER", list
 
     # reset buffer
     EventBuffer.reset('transaction')
@@ -42,43 +40,28 @@ class Observer::Transaction < ActiveRecord::Observer
 
     # get uniq objects
     list_objects = get_uniq_changes(list)
-    puts "list_objects", list_objects.inspect
-    puts '-1-'
     list_objects.each_value do |objects|
-      puts "objects in list_objects", objects
       objects.each_value do |item|
-        puts "item in objects", item
         item[:changes]["organization_id"] = [1, nil] if item[:object] == "Ticket" and item[:type] == "update"
 
         # execute sync backends
-        puts '-2-'
         sync_backends.each do |backend|
-
-          puts '-3-'
           execute_singel_backend(backend, item, params)
-
-          puts '-4-'
         end
 
-        puts '-5-'
         # execute async backends
         Delayed::Job.enqueue(Transaction::BackgroundJob.new(item, params))
-
-        puts '-6-'
       end
     end
   end
 
   def self.execute_singel_backend(backend, item, params)
-    puts 'b',backend,'i', item,'p', params
     Rails.logger.debug { "Execute singel backend #{backend}" }
     begin
       UserInfo.current_user_id = nil
       integration = backend.new(item, params)
-      puts "integartion1", integration.pretty_inspect
       integration.perform
     rescue => e
-      puts "execute_singel_backend ERROR", e
       Rails.logger.error 'ERROR: ' + backend.inspect
       Rails.logger.error 'ERROR: ' + e.inspect
       Rails.logger.error e.backtrace.inspect
@@ -133,8 +116,6 @@ class Observer::Transaction < ActiveRecord::Observer
 =end
 
   def self.get_uniq_changes(events)
-    puts "get_uniq_changes?"
-    puts events.inspect
     list_objects = {}
     events.each do |event|
 
@@ -142,8 +123,6 @@ class Observer::Transaction < ActiveRecord::Observer
       article = nil
       if event[:object] == 'Ticket::Article'
         article = Ticket::Article.find_by(id: event[:id])
-        puts "Transaction article=====>"
-        puts article.inspect
         next if !article
         next if event[:type] == 'update'
 
@@ -178,16 +157,11 @@ class Observer::Transaction < ActiveRecord::Observer
       end
 
       # merge changes
-      puts "event[:changes]"
-      puts event[:changes]
       if event[:changes]
-        puts store[:changes]
         if !store[:changes]
           store[:changes] = event[:changes]
         else
           event[:changes].each do |key, value|
-            puts "changes"
-            puts key, value
             if !store[:changes][key]
               store[:changes][key] = value
             else

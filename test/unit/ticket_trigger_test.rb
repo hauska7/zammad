@@ -1585,7 +1585,6 @@ class TicketTriggerTest < ActiveSupport::TestCase
       created_by_id: 1,
       updated_by_id: 1,
     )
-    puts "Triger", trigger1.pretty_inspect
     groups = Group.where(name: 'Users')
     roles = Role.where(name: 'Agent')
     agent = User.create_or_update(
@@ -1621,7 +1620,6 @@ class TicketTriggerTest < ActiveSupport::TestCase
       updated_by_id: 1,
       created_by_id: 1,
     )
-    puts "Before create"
     Ticket::Article.create!(
       ticket_id: ticket1.id,
       from: 'some_sender@example.com',
@@ -1636,8 +1634,6 @@ class TicketTriggerTest < ActiveSupport::TestCase
       created_by_id: 1,
     )
     Observer::Transaction.commit
-    puts "After create"
-    puts ticket1.pretty_inspect
 
     assert_equal('test 123', ticket1.title, 'ticket1.title verify')
     assert_equal('Users', ticket1.group.name, 'ticket1.group verify')
@@ -1648,8 +1644,7 @@ class TicketTriggerTest < ActiveSupport::TestCase
     assert_equal([], ticket1.tag_list)
 
     ticket1.update!(customer: customer )
-    puts "Before article"
-    puts agent.pretty_inspect
+
     UserInfo.current_user_id = agent.id
     Ticket::Article.create!(
       ticket_id: ticket1.id,
@@ -1663,16 +1658,10 @@ class TicketTriggerTest < ActiveSupport::TestCase
       sender: Ticket::Article::Sender.find_by(name: 'Agent'),
       type: Ticket::Article::Type.find_by(name: 'note'),
     )
-    puts "After article"
     Observer::Transaction.commit
     UserInfo.current_user_id = nil
-    puts "After Transaction"
 
     ticket1.reload
-    puts "After reload"
-
-    puts agent.id
-    puts ticket1.owner_id
 
     assert_equal('test 123', ticket1.title, 'ticket1.title verify')
     assert_equal('Users', ticket1.group.name, 'ticket1.group verify')

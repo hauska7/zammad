@@ -1157,9 +1157,6 @@ raise 'Minimum one user need to have admin permissions'
   end
 
   def domain_based_assignment
-    puts "domain_based_assignment"
-    puts email
-    puts organization_id
     return true if !email
     return true if organization_id
 
@@ -1169,8 +1166,6 @@ raise 'Minimum one user need to have admin permissions'
 
       organization = Organization.find_by(domain: domain.downcase, domain_assignment: true)
       return true if !organization
-      puts "dba organization"
-      puts organization.inspect
       self.organization_id = organization.id
     rescue
       return true

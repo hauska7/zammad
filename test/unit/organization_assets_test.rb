@@ -22,7 +22,6 @@ class OrganizationAssetsTest < ActiveSupport::TestCase
       updated_by_id: admin1.id,
       created_by_id: 1,
     )
-    puts "organization_assets_test FIRST ORG", org.pretty_inspect
 
     user1 = User.create_or_update(
       login: 'assets1@example.org',
@@ -75,8 +74,6 @@ class OrganizationAssetsTest < ActiveSupport::TestCase
       roles: roles,
     )
 
-    puts "Organization_assets_test user with org created by 1", temp_testing_user.pretty_inspect
-
     temp_testing_user2 = User.create_or_update(
       login: 'test_user2@example.org',
       firstname: 'test_user2',
@@ -90,10 +87,7 @@ class OrganizationAssetsTest < ActiveSupport::TestCase
       roles: roles,
     )
 
-    puts "Organization_assets_test user with org created by user2", temp_testing_user2.pretty_inspect
-
     org = Organization.find(org.id)
-    puts "1 organization_assets_test ORG after user created", org.pretty_inspect
     assets = org.assets({})
     attributes = org.attributes_with_association_ids
     attributes.delete('user_ids')
@@ -147,14 +141,12 @@ class OrganizationAssetsTest < ActiveSupport::TestCase
     attributes.delete('authorization_ids')
     assert_nil( assets[:User][temp_testing_user2.id], 'check assets' )
     #====
-    puts "organization_assets_test ORG before travel", Organization.find(org.id).pretty_inspect
     # touch user 2, check if org has changed
     travel 2.seconds
     user_new_2 = User.find(user2.id)
     user_new_2.lastname = 'assets2'
     user_new_2.save!
     org_new = Organization.find(org.id)
-    puts "organization_assets_test ORG after travel", org_new.pretty_inspect
     attributes = org_new.attributes_with_association_ids
     # puts "organization_assets_test ATTRIBUTES", attributes.pretty_inspect
     attributes.delete('user_ids')
@@ -222,7 +214,7 @@ class OrganizationAssetsTest < ActiveSupport::TestCase
       end
     end
     return true if (object1.to_a - object2.to_a).blank?
-    puts "ERROR: difference \n1: #{object1.inspect}\n2: #{object2.inspect}\ndiff: #{(object1.to_a - object2.to_a).inspect}"
+
     #puts "ERROR: difference \n1: #{object1.inspect}\n2: #{object2.inspect}\ndiff: #{(object1.to_a - object2.to_a).inspect}"
     false
   end

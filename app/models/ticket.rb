@@ -427,15 +427,12 @@ get count of tickets and tickets which match on selector
 
     query, bind_params, tables = selector2sql(selectors, current_user)
     return [] if !query
-    puts "===Ticket.selectors","q",query,"b",bind_params,"t",tables
+
     ActiveRecord::Base.transaction(requires_new: true) do
       begin
-        puts "===Ticket.selectors current_user", current_user
-
         if !current_user
           ticket_count = Ticket.distinct.where(query, *bind_params).joins(tables).count
           tickets = Ticket.distinct.where(query, *bind_params).joins(tables).limit(limit)
-          puts "TICKETS SQL",tickets.to_sql
           return [ticket_count, tickets]
         end
 
@@ -952,7 +949,6 @@ perform active triggers on ticket
 =end
 
   def self.perform_triggers(ticket, article, item, options = {})
-    puts "Ticket.perform_triggers","t",ticket,"a", article,"i", item,"o", options
     recursive = Setting.get('ticket_trigger_recursive')
     type = options[:type] || item[:type]
     local_options = options.clone
@@ -965,7 +961,6 @@ perform active triggers on ticket
     local_options[:loop_count] += 1
 
     ticket_trigger_recursive_max_loop = Setting.get('ticket_trigger_recursive_max_loop')&.to_i || 10
-    puts "local_options", local_options.pretty_inspect
     if local_options[:loop_count] > ticket_trigger_recursive_max_loop
       message = "Stopped perform_triggers for this object (Ticket/#{ticket.id}), because loop count was #{local_options[:loop_count]}!"
       logger.info { message }
@@ -977,8 +972,6 @@ perform active triggers on ticket
                else
                  ::Trigger.where(active: true).order(:name)
                end
-
-    puts "triggers", triggers.pretty_inspect
     return [true, 'No triggers active'] if triggers.blank?
 
     # check if notification should be send because of customer emails
@@ -993,10 +986,8 @@ perform active triggers on ticket
     end
 
     Transaction.execute(local_options) do
-      puts "TICKET TRANSACTION local_option", local_options.pretty_inspect
-      puts "TICKET TRANSACTION triggers", triggers.pretty_inspect
       triggers.each do |trigger|
-        puts "Probe trigger (#{trigger.name}/#{trigger.id}) for this object (Ticket:#{ticket.id}/Loop:#{local_options[:loop_count]})"
+        logger.debug { "Probe trigger (#{trigger.name}/#{trigger.id}) for this object (Ticket:#{ticket.id}/Loop:#{local_options[:loop_count]})" }
 
         condition = trigger.condition
 
@@ -1051,7 +1042,6 @@ perform active triggers on ticket
 
           condition.delete('ticket.action')
         end
-        puts "TICKET TRANSACTION triggers has_changed_done", !has_changed_done
         next if !has_changed_done
 
         # check in min one attribute of condition has changed on update
@@ -1088,11 +1078,8 @@ perform active triggers on ticket
           }
         end
 
-        puts "TICKET TRANSACTION triggers condition", condition.pretty_inspect
         # verify is condition is matching
         ticket_count, tickets = Ticket.selectors(condition, 1)
-
-        puts "TICKET TRANSACTION triggers ticket_count, tickets", ticket_count, tickets.pretty_inspect
 
         next if ticket_count.blank?
         next if ticket_count.zero?

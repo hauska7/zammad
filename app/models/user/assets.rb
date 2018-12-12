@@ -25,7 +25,6 @@ returns
     def assets (data)
 
       app_model = User.to_app_model
-      puts "User assets data", data[ app_model ].pretty_inspect
       if !data[ app_model ]
         data[ app_model ] = {}
       end
@@ -73,7 +72,6 @@ returns
 
           data = group.assets(data)
         end
-        puts "USER ASSETS local_attributes",local_attributes.pretty_inspect
         # get organizations
         local_attributes['organization_ids']&.each do |organization_id|
           next if data[:Organization] && data[:Organization][organization_id]
@@ -83,19 +81,8 @@ returns
 
           data = organization.assets(data)
         end
-        #
-        # if local_attributes['organization_id']
-        #   if !data[:Organization] && !data[:Organization]&[local_attributes['organization_id']]
-        #     organization = Organization.lookup(id: local_attributes['organization_id'])
-        #     if organization
-        #       data = organization.assets(data)
-        #     end
-        #   end
-        # end
         data[ app_model ][ id ] = local_attributes
       end
-      puts ">>> USER2 ASSETS", self.organization_id, local_attributes.pretty_inspect if local_attributes['login']  == "assets2@example.org"
-      puts ">>> DATA ASSETS", data.pretty_inspect if local_attributes['login']  == "assets2@example.org"
 
       # add organization
       if self.organization_ids.any?
@@ -112,13 +99,11 @@ returns
       if self.organization_id
         if !data[:Organization] || !data[:Organization][self.organization_id]
           organization = Organization.lookup(id: self.organization_id)
-          puts "ORGANIZATION",organization.pretty_inspect  if local_attributes['login']  == "assets2@example.org"
           if organization
             data = organization.assets(data)
           end
         end
       end
-
       %w[created_by_id updated_by_id].each do |local_user_id|
         next if !self[ local_user_id ]
         next if data[ app_model ][ self[ local_user_id ] ]

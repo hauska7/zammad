@@ -3,6 +3,7 @@ class App.ControllerForm extends App.Controller
     super
     for key, value of params
       @[key] = value
+
     if !@handlers
       @handlers = []
 
@@ -13,6 +14,7 @@ class App.ControllerForm extends App.Controller
 
     @handlers.push @showHideToggle
     @handlers.push @requiredMandantoryToggle
+
     if !@model
       @model = {}
     if !@attributes
@@ -63,7 +65,9 @@ class App.ControllerForm extends App.Controller
       fieldset = @el
     else
       fieldset = $('<fieldset></fieldset>')
+
     return fieldset if _.isEmpty(@model)
+
     # collect form attributes
     @attributes = []
     if @model.attributesGet
