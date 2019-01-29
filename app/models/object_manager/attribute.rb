@@ -18,6 +18,8 @@ class ObjectManager::Attribute < ApplicationModel
     boolean
     user_permission
     active
+    select_organization
+    autocompletion_multiple_ajax
   ].freeze
 
   self.table_name = 'object_manager_attributes'

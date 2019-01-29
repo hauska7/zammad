@@ -1587,7 +1587,6 @@ class TicketTriggerRecursiveDisabledTest < ActiveSupport::TestCase
       updated_by_id: 1,
       created_by_id: 1,
     )
-
     ticket1 = Ticket.create!(
       title: 'test 123',
       group: Group.lookup(name: 'Users'),

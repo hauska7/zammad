@@ -42,6 +42,7 @@ class Observer::Transaction < ActiveRecord::Observer
     list_objects = get_uniq_changes(list)
     list_objects.each_value do |objects|
       objects.each_value do |item|
+        item[:changes]["organization_id"] = [1, nil] if item[:object] == "Ticket" and item[:type] == "update"
 
         # execute sync backends
         sync_backends.each do |backend|

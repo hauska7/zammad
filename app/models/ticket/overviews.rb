@@ -23,7 +23,12 @@ returns
       if current_user.organization_id && current_user.organization.shared
         overview_filter.delete(:organization_shared)
       end
-      overviews = Overview.joins(:roles).left_joins(:users).where(overviews_roles: { role_id: role_ids }, overviews_users: { user_id: nil }, overviews: overview_filter).or(Overview.joins(:roles).left_joins(:users).where(overviews_roles: { role_id: role_ids }, overviews_users: { user_id: current_user.id }, overviews: overview_filter)).distinct('overview.id').order(:prio, :name)
+      if overview_filter.key?(:organization_shared) && current_user.organization_ids.any?
+        current_user.organizations.each do |org|
+          overview_filter.delete(:organization_shared) if org.shared
+        end
+      end
+      overviews = Overview.joins(:roles).left_joins(:users).where(overviews_roles: { role_id: role_ids }, overviews_users: { user_id: nil }, overviews: overview_filter).or(Overview.joins(:roles).left_joins(:users).where(overviews_roles: { role_id: role_ids }, overviews_users: { user_id: current_user.id }, overviews: overview_filter)).distinct('overview.id').order(:prio)
       return overviews
     end
 

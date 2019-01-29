@@ -383,7 +383,6 @@ class App.TicketCreate extends App.Controller
     App.Utils.tokanice('.content.active input[name=cc]', 'email')
 
   localUserInfo: (e) =>
-    return if !@sidebarWidget
     params = App.ControllerForm.params($(e.target).closest('form'))
 
     if params.customer_id
@@ -394,13 +393,19 @@ class App.TicketCreate extends App.Controller
     @localUserInfoCallback(params)
 
   localUserInfoCallback: (params, customer = {}) =>
-    @sidebarWidget.render(params)
-    @textModule.reload(
-      config: App.Config.all()
-      user: App.Session.get()
-      ticket:
-        customer: customer
-    )
+    # run handler on organization_id select form
+    $('[name=organization_id]').trigger('change')
+
+    if @textModule
+      @textModule.reload(
+        config: App.Config.all()
+        user: App.Session.get()
+        ticket:
+          customer: customer
+      )
+
+    if @sidebarWidget
+      @sidebarWidget.render(params)
 
   cancel: (e) ->
     e.preventDefault()

@@ -323,6 +323,45 @@ ObjectManager::Attribute.add(
 )
 
 ObjectManager::Attribute.add(
+    force: true,
+    object: 'Ticket',
+    name: 'organization_id',
+    display: 'Organization',
+    data_type: 'select_organization',
+    data_option: {
+        relation: 'Organization',
+        nulloption: false,
+        multiple: false,
+        null: false,
+        default: 0,
+        translate: true
+    },
+    editable: false,
+    active: true,
+
+    screens: {
+        create_middle: {
+            'ticket.agent' =>  {
+                null: false,
+                default: 0,
+                item_class: 'column'
+            },
+            'ticket.customer' => {
+                null: false,
+                default: 0,
+                item_class: 'column'
+            },
+        },
+    },
+    to_create: false,
+    to_migrate: false,
+    to_delete: false,
+    position: 45,
+    updated_by_id: 1,
+    created_by_id: 1,
+)
+
+ObjectManager::Attribute.add(
   force: true,
   object: 'TicketArticle',
   name: 'type_id',
@@ -788,11 +827,11 @@ ObjectManager::Attribute.add(
 ObjectManager::Attribute.add(
   force: true,
   object: 'User',
-  name: 'organization_id',
-  display: 'Organization',
-  data_type: 'autocompletion_ajax',
+  name: 'organization_ids',
+  display: 'Alternative Organizations',
+  data_type: 'autocompletion_multiple_ajax',
   data_option: {
-    multiple: false,
+    multiple: true,
     nulloption: true,
     null: true,
     relation: 'Organization',
@@ -823,6 +862,46 @@ ObjectManager::Attribute.add(
   to_migrate: false,
   to_delete: false,
   position: 900,
+)
+
+ObjectManager::Attribute.add(
+    force: true,
+    object: 'User',
+    name: 'organization_id',
+    display: 'Primary Organization',
+    data_type: 'autocompletion_ajax',
+    data_option: {
+        multiple: false,
+        nulloption: true,
+        null: true,
+        relation: 'Organization',
+        item_class: 'formGroup--halfSize',
+    },
+    editable: false,
+    active: true,
+    screens: {
+        signup: {},
+        invite_agent: {},
+        invite_customer: {
+            '-all-' => {
+                null: true,
+            },
+        },
+        edit: {
+            '-all-' => {
+                null: true,
+            },
+        },
+        view: {
+            '-all-' => {
+                shown: true,
+            },
+        },
+    },
+    to_create: false,
+    to_migrate: false,
+    to_delete: false,
+    position: 900,
 )
 
 ObjectManager::Attribute.add(

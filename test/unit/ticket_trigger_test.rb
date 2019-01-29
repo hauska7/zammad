@@ -1662,6 +1662,7 @@ class TicketTriggerTest < ActiveSupport::TestCase
     UserInfo.current_user_id = nil
 
     ticket1.reload
+
     assert_equal('test 123', ticket1.title, 'ticket1.title verify')
     assert_equal('Users', ticket1.group.name, 'ticket1.group verify')
     assert_equal(agent.id, ticket1.owner_id, 'ticket1.owner_id verify')

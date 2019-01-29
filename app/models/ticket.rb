@@ -85,10 +85,12 @@ returns
   def self.access_condition(user, access)
     if user.permissions?('ticket.agent')
       ['group_id IN (?)', user.group_ids_access(access)]
-    elsif !user.organization || ( !user.organization.shared || user.organization.shared == false )
-      ['tickets.customer_id = ?', user.id]
-    else
+    elsif user.organization
       ['(tickets.customer_id = ? OR tickets.organization_id = ?)', user.id, user.organization.id]
+    elsif user.organizations.any?
+      ['(tickets.customer_id = ? OR tickets.organization_id IN (?))', user.id, user.organizations.map { |org| org.id }]
+    else
+      ['tickets.customer_id = ?', user.id]
     end
   end
 
@@ -603,8 +605,11 @@ condition example
           raise "Use current_user.id in selector, but no current_user is set #{selector.inspect}" if !current_user_id
 
           query += "#{attribute} IN (?)"
-          user = User.find_by(id: current_user_id)
-          bind_params.push user.organization_id
+          user = User.lookup(id: current_user_id)
+          organizations = []
+          organizations.push user.organization_id if user.organization_id
+          organizations.concat user.organization_ids if user.organization_ids&.any?
+          bind_params.push organizations
         else
           # rubocop:disable Style/IfInsideElse
           if selector['value'].nil?
@@ -644,8 +649,11 @@ condition example
           end
         elsif selector['pre_condition'] == 'current_user.organization_id'
           query += "(#{attribute} IS NULL OR #{attribute} NOT IN (?))"
-          user = User.find_by(id: current_user_id)
-          bind_params.push user.organization_id
+          user = User.lookup(id: current_user_id)
+          organizations = []
+          organizations.push user.organization_id if user.organization_id
+          organizations.concat user.organization_ids if user.organization_ids&.any?
+          bind_params.push organizations
         else
           # rubocop:disable Style/IfInsideElse
           if selector['value'].nil?
@@ -1206,16 +1214,14 @@ result
   end
 
   def check_defaults
-    if !owner_id
-      self.owner_id = 1
-    end
+    self.owner_id = 1 if !owner_id
     return true if !customer_id
 
     customer = User.find_by(id: customer_id)
     return true if !customer
-    return true if organization_id == customer.organization_id
-
-    self.organization_id = customer.organization_id
+    return true if customer.organization_ids.include?(organization_id)
+    return true if customer.organization_id? && customer.organization_id == organization_id
+    self.organization_id = customer.organization_id ? customer.organization_id : customer.organization_ids[0]
     true
   end
 

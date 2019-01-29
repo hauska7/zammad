@@ -25,7 +25,6 @@ returns
     def assets (data)
 
       app_model = User.to_app_model
-
       if !data[ app_model ]
         data[ app_model ] = {}
       end
@@ -73,7 +72,6 @@ returns
 
           data = group.assets(data)
         end
-
         # get organizations
         local_attributes['organization_ids']&.each do |organization_id|
           next if data[:Organization] && data[:Organization][organization_id]
@@ -83,11 +81,21 @@ returns
 
           data = organization.assets(data)
         end
-
         data[ app_model ][ id ] = local_attributes
       end
 
       # add organization
+      if self.organization_ids.any?
+        self.organization_ids.each do |org|
+          if !data[:Organization] || !data[:Organization][org]
+            organization = Organization.lookup(id: org)
+            if organization
+              data = organization.assets(data)
+            end
+          end
+        end
+      end
+
       if self.organization_id
         if !data[:Organization] || !data[:Organization][self.organization_id]
           organization = Organization.lookup(id: self.organization_id)
